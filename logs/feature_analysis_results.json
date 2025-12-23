@@ -1,0 +1,156 @@
+{
+  "n_episodes": 1000,
+  "n_success": 11,
+  "n_failure": 989,
+  "success_rate": 1.0999999999999999,
+  "avg_features_success": 13.727272727272727,
+  "avg_features_failure": 9.69767441860465,
+  "avg_features_all": 9.742,
+  "top_features_success": [
+    {
+      "feature": "Country_ConvRate",
+      "count": 11,
+      "percentage": 100.0
+    },
+    {
+      "feature": "Education_ConvRate",
+      "count": 11,
+      "percentage": 100.0
+    },
+    {
+      "feature": "Education",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Country",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Days_Since_First_Norm",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Days_Since_Last_Norm",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Had_First_Call",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Had_Survey",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Had_Manager",
+      "count": 10,
+      "percentage": 90.9090909090909
+    },
+    {
+      "feature": "Stages_Completed",
+      "count": 10,
+      "percentage": 90.9090909090909
+    }
+  ],
+  "top_combinations": [
+    {
+      "combo": [
+        "Contact_Frequency",
+        "Country",
+        "Country_ConvRate",
+        "Days_Between_Norm",
+        "Days_Since_First_Norm",
+        "Days_Since_Last_Norm",
+        "Education",
+        "Education_ConvRate",
+        "Had_Demo",
+        "Had_First_Call",
+        "Had_Manager",
+        "Had_Signup",
+        "Had_Survey",
+        "Stage",
+        "Stages_Completed",
+        "Status_Active"
+      ],
+      "count": 4,
+      "percentage": 36.36363636363637
+    },
+    {
+      "combo": [
+        "Contact_Frequency",
+        "Country",
+        "Country_ConvRate",
+        "Days_Since_First_Norm",
+        "Days_Since_Last_Norm",
+        "Education",
+        "Education_ConvRate",
+        "Had_First_Call",
+        "Had_Manager",
+        "Had_Signup",
+        "Had_Survey",
+        "Stages_Completed",
+        "Status_Active"
+      ],
+      "count": 1,
+      "percentage": 9.090909090909092
+    },
+    {
+      "combo": [
+        "Country",
+        "Country_ConvRate",
+        "Days_Between_Norm",
+        "Days_Since_First_Norm",
+        "Days_Since_Last_Norm",
+        "Education",
+        "Education_ConvRate",
+        "Had_First_Call",
+        "Had_Manager",
+        "Stages_Completed"
+      ],
+      "count": 1,
+      "percentage": 9.090909090909092
+    },
+    {
+      "combo": [
+        "Country_ConvRate",
+        "Days_Since_First_Norm",
+        "Days_Since_Last_Norm",
+        "Education",
+        "Education_ConvRate",
+        "Had_First_Call",
+        "Had_Manager",
+        "Had_Signup",
+        "Had_Survey",
+        "Stage",
+        "Stages_Completed",
+        "Status_Active"
+      ],
+      "count": 1,
+      "percentage": 9.090909090909092
+    },
+    {
+      "combo": [
+        "Country",
+        "Country_ConvRate",
+        "Days_Between_Norm",
+        "Days_Since_First_Norm",
+        "Days_Since_Last_Norm",
+        "Education_ConvRate",
+        "Had_Demo",
+        "Had_First_Call",
+        "Had_Manager",
+        "Had_Survey",
+        "Stage",
+        "Stages_Completed"
+      ],
+      "count": 1,
+      "percentage": 9.090909090909092
+    }
+  ]
+}

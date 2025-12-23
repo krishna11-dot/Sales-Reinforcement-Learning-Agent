@@ -1,0 +1,63 @@
+{
+  "subscription_rate": 0.8,
+  "first_call_rate": 2.5,
+  "avg_reward": -58.95648193359375,
+  "baseline_sub_rate": 0.44,
+  "baseline_call_rate": 4.0,
+  "improvement_factor": 1.8181818181818183,
+  "avg_feature_toggles": 14.714,
+  "avg_features_selected": 0.112,
+  "feature_usage_percentage": 0.7000000000000001,
+  "top_features": [
+    {
+      "feature": "Country",
+      "count": 8,
+      "percentage": 0.8
+    },
+    {
+      "feature": "Had_First_Call",
+      "count": 8,
+      "percentage": 0.8
+    },
+    {
+      "feature": "Had_Survey",
+      "count": 8,
+      "percentage": 0.8
+    },
+    {
+      "feature": "Education",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Stage",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Days_Since_First_Norm",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Days_Between_Norm",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Contact_Frequency",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Had_Demo",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    },
+    {
+      "feature": "Had_Signup",
+      "count": 7,
+      "percentage": 0.7000000000000001
+    }
+  ]
+}
