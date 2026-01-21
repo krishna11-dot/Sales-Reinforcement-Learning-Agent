@@ -593,7 +593,7 @@ pytest tests/ --cov=src --cov-report=term-missing
 
 **Test Results:** 19/21 tests pass (2 expected failures caught real data issues)
 
-See [tests/README.md](tests/README.md), [PHASE_2_QUICK_START.md](PHASE_2_QUICK_START.md), and [docs/PHASE_3_CI_CD_IMPLEMENTATION.md](docs/PHASE_3_CI_CD_IMPLEMENTATION.md) for detailed testing and CI/CD guide.
+See [tests/README.md](tests/README.md), [docs/PHASE_2_QUICK_START.md](docs/PHASE_2_QUICK_START.md), and [docs/PHASE_3_CI_CD_IMPLEMENTATION.md](docs/PHASE_3_CI_CD_IMPLEMENTATION.md) for detailed testing and CI/CD guide.
 
 ---
 
