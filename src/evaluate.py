@@ -4,6 +4,7 @@ Evaluation Script for Trained RL Agent
 Evaluates agent on test set and generates business insights.
 """
 
+import logging
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -12,6 +13,18 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).parent))
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 from environment import CRMSalesFunnelEnv
 from agent import QLearningAgent
@@ -23,9 +36,9 @@ def evaluate_agent(agent_path='checkpoints/agent_final.pkl',
     """
     Evaluate trained agent on test set.
     """
-    print("\n" + "="*80)
-    print("EVALUATION ON TEST SET")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("EVALUATION ON TEST SET")
+    logger.info("="*80)
 
     # Load trained agent
     agent = QLearningAgent()
@@ -81,18 +94,18 @@ def evaluate_agent(agent_path='checkpoints/agent_final.pkl',
     call_rate = np.mean(results['first_calls']) * 100
     avg_reward = np.mean(results['rewards'])
 
-    print("\n" + "="*80)
-    print("TEST SET RESULTS")
-    print("="*80)
-    print(f"Episodes: {n_episodes}")
-    print(f"\nBUSINESS METRICS:")
-    print(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
-    print(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
-    print(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
-    print(f"\nTECHNICAL METRICS:")
-    print(f"  Avg Reward: {avg_reward:.2f}")
-    print(f"  Avg Steps: {np.mean(results['steps']):.2f}")
-    print("="*80 + "\n")
+    logger.info("="*80)
+    logger.info("TEST SET RESULTS")
+    logger.info("="*80)
+    logger.info(f"Episodes: {n_episodes}")
+    logger.info(f"BUSINESS METRICS:")
+    logger.info(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
+    logger.debug(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
+    logger.info(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
+    logger.info(f"TECHNICAL METRICS:")
+    logger.info(f"  Avg Reward: {avg_reward:.2f}")
+    logger.debug(f"  Avg Steps: {np.mean(results['steps']):.2f}")
+    logger.info("="*80)
 
     # Save results
     with open('logs/test_results.json', 'w') as f:

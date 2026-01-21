@@ -1,8 +1,8 @@
 {
-  "subscription_rate": 1.5,
-  "first_call_rate": 5.3,
-  "avg_reward": -71.496,
+  "subscription_rate": 1.3,
+  "first_call_rate": 4.9,
+  "avg_reward": -70.2,
   "baseline_sub_rate": 0.44,
   "baseline_call_rate": 4.0,
-  "improvement_factor": 3.409090909090909
+  "improvement_factor": 2.9545454545454546
 }

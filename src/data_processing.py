@@ -13,7 +13,205 @@ INTERVIEW PREP: Be able to explain WHY each step prevents data leakage!
 import pandas as pd
 import numpy as np
 import json
+import logging
 from pathlib import Path
+
+# Configure logging for data processing
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)  # Default: INFO level
+
+
+def set_logging_level(level='INFO'):
+    """
+    Set logging level for data processing module.
+
+    Args:
+        level: 'DEBUG', 'INFO', 'WARNING', 'ERROR'
+
+    Usage:
+        set_logging_level('DEBUG')   # Show all details
+        set_logging_level('INFO')    # Show important info only (default)
+        set_logging_level('WARNING') # Show warnings only
+    """
+    level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR
+    }
+    logger.setLevel(level_map.get(level.upper(), logging.INFO))
+    logger.info(f"Logging level set to {level.upper()}")
+
+
+def validate_data(df, data_type='train', stage='raw'):
+    """
+    Validate data before processing or training.
+
+    WHY: Environment expects specific columns, formats, and no NaN.
+    If data doesn't meet these requirements, training will crash
+    or produce incorrect results.
+
+    PRINCIPLE: Tests check that function receives what it expects
+
+    Args:
+        df: Input DataFrame
+        data_type: 'train', 'val', or 'test'
+        stage: 'raw' (before processing) or 'processed' (after feature engineering)
+
+    Raises:
+        AssertionError: If data doesn't meet requirements
+
+    Returns:
+        df: Same DataFrame (for chaining)
+    """
+
+    # Check 1: DataFrame not empty
+    # WHY: env.reset() will crash if no customers exist
+    assert len(df) > 0, f"{data_type} data is empty!"
+
+    if stage == 'raw':
+        # Validate raw data before processing
+        required_cols = [
+            'Country',           # → Country_Encoded in state
+            'Education',         # → Education_ConvRate in state
+            'Status',            # → Status_Active in state
+            'Stage',             # → current_stage in state
+            'First Contact',     # → Days_Since_First_Norm in state
+            'Last Contact',      # → Days_Since_Last_Norm in state
+            'First Call',        # → Had_First_Call (binary flag)
+            'Signed up for a demo',        # → Had_Demo
+            'Filled in customer survey',   # → Had_Survey
+            'Did sign up to the platform', # → Had_Signup
+            'Account Manager assigned',    # → Had_Manager
+            'Subscribed'         # → Subscribed_Binary (target)
+        ]
+
+        # Check 2: Required columns exist
+        missing = [col for col in required_cols if col not in df.columns]
+        assert len(missing) == 0, (
+            f"Missing required columns in {data_type} data: {missing}\n"
+            f"WHY: These columns are needed for state representation in environment.py"
+        )
+
+        # Check 3: Critical columns have no NaN (Country, Education, Status)
+        # Note: Other columns can have NaN (means event didn't happen)
+        critical_cols = ['Country', 'Education', 'Status', 'Stage']
+        nan_counts = df[critical_cols].isnull().sum()
+
+        if nan_counts.sum() > 0:
+            logger.warning(f"Found NaN in critical columns:")
+            for col, count in nan_counts[nan_counts > 0].items():
+                logger.warning(f"   {col}: {count} NaN values ({count/len(df)*100:.2f}%)")
+            logger.info(f"   These will be filled with defaults in processing.")
+
+    elif stage == 'processed':
+        # Validate processed data ready for RL environment
+
+        # Check 2: All state features exist
+        # WHY: environment.py line 308-337 accesses these in _get_state()
+        state_features = [
+            'Country_Encoded',         # Line 311
+            'Stage_Encoded',           # Line 314 (note: code uses self.current_stage, not this column)
+            'Status_Active',           # Line 315
+            'Days_Since_First_Norm',   # Line 318
+            'Days_Since_Last_Norm',    # Line 319
+            'Days_Between_Norm',       # Line 320
+            'Contact_Frequency',       # Line 321
+            'Had_First_Call',          # Line 324
+            'Had_Demo',                # Line 325
+            'Had_Survey',              # Line 326
+            'Had_Signup',              # Line 327
+            'Had_Manager',             # Line 328
+            'Country_ConvRate',        # Line 331
+            'Education_ConvRate',      # Line 332
+            'Stages_Completed'         # Line 335
+        ]
+
+        missing = [col for col in state_features if col not in df.columns]
+        assert len(missing) == 0, (
+            f"Missing state features in {data_type} data: {missing}\n"
+            f"WHY: environment.py _get_state() accesses these columns. "
+            f"Missing features will cause KeyError during training!"
+        )
+
+        # Check 3: No NaN in state features
+        # WHY: np.array() conversion will fail or produce NaN states
+        nan_counts = df[state_features].isnull().sum()
+        assert nan_counts.sum() == 0, (
+            f"Found NaN values in state features:\n{nan_counts[nan_counts > 0]}\n"
+            f"WHY: State vector uses np.array([...]) which cannot handle NaN. "
+            f"Training will produce invalid states!"
+        )
+
+        # Check 4: Subscribed_Binary is 0 or 1 (TARGET VARIABLE!)
+        # WHY: Line 252 in environment.py checks "if Subscribed_Binary == 1"
+        # If not 0/1 → Agent never receives +100 reward → Can't learn!
+        assert 'Subscribed_Binary' in df.columns, (
+            f"Missing target column 'Subscribed_Binary' in {data_type} data!\n"
+            f"WHY: This is the PRIMARY REWARD in environment.py line 252-256"
+        )
+
+        unique_vals = df['Subscribed_Binary'].dropna().unique()
+        assert set(unique_vals).issubset({0, 1}), (
+            f"Subscribed_Binary must be 0 or 1! Found: {unique_vals}\n"
+            f"WHY: Environment checks 'if Subscribed_Binary == 1' for +100 reward. "
+            f"Other values mean agent never gets rewarded and can't learn!"
+        )
+
+        # Check 5: Binary flags are 0 or 1
+        # WHY: Reward calculation checks "if Had_First_Call == 1" (line 221)
+        # Non-binary values → Intermediate rewards never trigger → Wrong learning!
+        binary_features = [
+            'Had_First_Call',    # Line 221: +15 reward check
+            'Had_Demo',          # Line 226: +12 reward check
+            'Had_Survey',        # Line 231: +8 reward check
+            'Had_Signup',        # Line 241: +20 reward check
+            'Had_Manager',       # Line 236: +10 reward check
+            'Status_Active'      # Line 315: state feature
+        ]
+
+        for col in binary_features:
+            unique_vals = df[col].dropna().unique()
+            assert set(unique_vals).issubset({0, 1}), (
+                f"{col} must be binary (0 or 1)! Found: {unique_vals}\n"
+                f"WHY: environment.py checks 'if {col} == 1' for intermediate rewards. "
+                f"Non-binary values break reward calculation!"
+            )
+
+        # Check 6: Normalized features are in [0, 1]
+        # WHY: Normalization should clip to [0, 1] for RL stability
+        norm_features = ['Days_Since_First_Norm', 'Days_Since_Last_Norm',
+                        'Days_Between_Norm', 'Country_ConvRate', 'Education_ConvRate']
+
+        for col in norm_features:
+            assert df[col].between(0, 1).all(), (
+                f"{col} values outside [0, 1] range!\n"
+                f"Min: {df[col].min()}, Max: {df[col].max()}\n"
+                f"WHY: Normalized features should be clipped to [0, 1] for stable RL training"
+            )
+
+    # Success message
+    logger.info(f"{data_type.capitalize()} data validation passed ({stage} stage)")
+    logger.debug(f"   Samples: {len(df):,}")
+
+    if stage == 'processed' and 'Subscribed_Binary' in df.columns:
+        n_positive = df['Subscribed_Binary'].sum()
+        pct_positive = df['Subscribed_Binary'].mean() * 100
+        logger.debug(f"   Positive samples: {n_positive:,} ({pct_positive:.2f}%)")
+        logger.debug(f"   Class imbalance: {(len(df)-n_positive)/n_positive:.0f}:1")
+
+    logger.debug(f"   All required columns present")
+    logger.debug(f"   All checks passed")
+
+    return df
 
 
 def process_crm_data(filepath, output_dir='data/processed'):
@@ -32,18 +230,26 @@ def process_crm_data(filepath, output_dir='data/processed'):
     Returns:
         train_df, val_df, test_df, historical_stats
     """
-    print("\n" + "="*80)
-    print("STEP 1: LOADING RAW DATA")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("STEP 1: LOADING RAW DATA")
+    logger.info("="*80)
 
     # Load raw data
     df = pd.read_excel(filepath)
-    print(f"Loaded {len(df):,} customers from {filepath}")
-    print(f"Columns: {df.columns.tolist()}")
+    logger.info(f"Loaded {len(df):,} customers from {filepath}")
+    logger.debug(f"Columns: {df.columns.tolist()}")
 
-    print("\n" + "="*80)
-    print("STEP 2: PARSE DATE COLUMNS")
-    print("="*80)
+    # VALIDATION: Check raw data has required columns
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 1.5: VALIDATE RAW DATA")
+    logger.info("="*80)
+    df = validate_data(df, data_type='all', stage='raw')
+
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 2: PARSE DATE COLUMNS")
+    logger.info("="*80)
 
     # Parse all date columns to datetime
     # SAFE: These are historical events (past), not future information
@@ -58,11 +264,12 @@ def process_crm_data(filepath, output_dir='data/processed'):
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce')
             non_null = df[col].notna().sum()
-            print(f"{col}: {non_null:,} non-null ({non_null/len(df)*100:.2f}%)")
+            logger.debug(f"{col}: {non_null:,} non-null ({non_null/len(df)*100:.2f}%)")
 
-    print("\n" + "="*80)
-    print("STEP 3: TEMPORAL SPLIT (CRITICAL - BEFORE FEATURE ENGINEERING!)")
-    print("="*80)
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 3: TEMPORAL SPLIT (CRITICAL - BEFORE FEATURE ENGINEERING!)")
+    logger.info("="*80)
 
     # CRITICAL: Split by date BEFORE calculating any statistics
     # WHY: Prevents test set outcomes from leaking into train features
@@ -79,18 +286,19 @@ def process_crm_data(filepath, output_dir='data/processed'):
     val_df = df.iloc[train_end_idx:val_end_idx].copy()
     test_df = df.iloc[val_end_idx:].copy()
 
-    print(f"Train set: {len(train_df):,} customers ({len(train_df)/len(df)*100:.1f}%)")
-    print(f"  Date range: {train_df['First Contact'].min()} to {train_df['First Contact'].max()}")
+    logger.info(f"Train set: {len(train_df):,} customers ({len(train_df)/len(df)*100:.1f}%)")
+    logger.debug(f"  Date range: {train_df['First Contact'].min()} to {train_df['First Contact'].max()}")
 
-    print(f"Val set: {len(val_df):,} customers ({len(val_df)/len(df)*100:.1f}%)")
-    print(f"  Date range: {val_df['First Contact'].min()} to {val_df['First Contact'].max()}")
+    logger.info(f"Val set: {len(val_df):,} customers ({len(val_df)/len(df)*100:.1f}%)")
+    logger.debug(f"  Date range: {val_df['First Contact'].min()} to {val_df['First Contact'].max()}")
 
-    print(f"Test set: {len(test_df):,} customers ({len(test_df)/len(df)*100:.1f}%)")
-    print(f"  Date range: {test_df['First Contact'].min()} to {test_df['First Contact'].max()}")
+    logger.info(f"Test set: {len(test_df):,} customers ({len(test_df)/len(df)*100:.1f}%)")
+    logger.debug(f"  Date range: {test_df['First Contact'].min()} to {test_df['First Contact'].max()}")
 
-    print("\n" + "="*80)
-    print("STEP 4: CREATE TARGET VARIABLES")
-    print("="*80)
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 4: CREATE TARGET VARIABLES")
+    logger.info("="*80)
 
     # Create binary target variables
     for split_df in [train_df, val_df, test_df]:
@@ -101,27 +309,28 @@ def process_crm_data(filepath, output_dir='data/processed'):
     train_sub_rate = train_df['Subscribed_Binary'].mean() * 100
     train_call_rate = train_df['Had_First_Call'].mean() * 100
 
-    print(f"TRAIN SET BASELINE METRICS:")
-    print(f"  Subscription rate: {train_sub_rate:.2f}%")
-    print(f"  First call rate: {train_call_rate:.2f}%")
-    print(f"  Class imbalance: {(1-train_df['Subscribed_Binary'].mean())/train_df['Subscribed_Binary'].mean():.0f}:1")
+    logger.info(f"TRAIN SET BASELINE METRICS:")
+    logger.info(f"  Subscription rate: {train_sub_rate:.2f}%")
+    logger.debug(f"  First call rate: {train_call_rate:.2f}%")
+    logger.debug(f"  Class imbalance: {(1-train_df['Subscribed_Binary'].mean())/train_df['Subscribed_Binary'].mean():.0f}:1")
 
-    print("\n" + "="*80)
-    print("STEP 5: CALCULATE HISTORICAL STATISTICS (TRAIN SET ONLY!)")
-    print("="*80)
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 5: CALCULATE HISTORICAL STATISTICS (TRAIN SET ONLY!)")
+    logger.info("="*80)
 
     # CRITICAL: Calculate aggregated statistics ONLY on train set
     # WHY: Using test set here would leak future outcomes into features
 
     # Country conversion rates (from train only)
     country_stats = train_df.groupby('Country')['Subscribed_Binary'].agg(['mean', 'count'])
-    print(f"\nCountry statistics (top 10 by conversion rate):")
-    print(country_stats.nlargest(10, 'mean'))
+    logger.debug(f"\nCountry statistics (top 10 by conversion rate):")
+    logger.debug(f"\n{country_stats.nlargest(10, 'mean')}")
 
     # Education conversion rates (from train only)
     edu_stats = train_df.groupby('Education')['Subscribed_Binary'].agg(['mean', 'count'])
-    print(f"\nEducation statistics:")
-    print(edu_stats.sort_values('mean', ascending=False))
+    logger.debug(f"\nEducation statistics:")
+    logger.debug(f"\n{edu_stats.sort_values('mean', ascending=False)}")
 
     # Store as dictionaries for mapping
     historical_stats = {
@@ -130,13 +339,14 @@ def process_crm_data(filepath, output_dir='data/processed'):
         'global_avg': train_df['Subscribed_Binary'].mean()  # Fallback for unseen categories
     }
 
-    print(f"\nStored {len(historical_stats['country_conv'])} country stats")
-    print(f"Stored {len(historical_stats['edu_conv'])} education stats")
-    print(f"Global average: {historical_stats['global_avg']:.4f}")
+    logger.info(f"Stored {len(historical_stats['country_conv'])} country stats")
+    logger.info(f"Stored {len(historical_stats['edu_conv'])} education stats")
+    logger.debug(f"Global average: {historical_stats['global_avg']:.4f}")
 
-    print("\n" + "="*80)
-    print("STEP 6: FEATURE ENGINEERING (SAME FOR ALL SPLITS)")
-    print("="*80)
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 6: FEATURE ENGINEERING (SAME FOR ALL SPLITS)")
+    logger.info("="*80)
 
     # Apply feature engineering to each split
     # IMPORTANT: All splits use TRAIN statistics (no leakage)
@@ -144,12 +354,23 @@ def process_crm_data(filepath, output_dir='data/processed'):
     val_df = engineer_features(val_df, historical_stats)
     test_df = engineer_features(test_df, historical_stats)
 
-    print(f"Engineered {len(train_df.columns)} total features")
-    print(f"Feature columns: {[col for col in train_df.columns if col not in df.columns]}")
+    logger.info(f"Engineered {len(train_df.columns)} total features")
+    logger.debug(f"Feature columns: {[col for col in train_df.columns if col not in df.columns]}")
 
-    print("\n" + "="*80)
-    print("STEP 7: SAVE PROCESSED DATA")
-    print("="*80)
+    # VALIDATION: Check processed data is ready for RL environment
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 6.5: VALIDATE PROCESSED DATA")
+    logger.info("="*80)
+    logger.info("Validating that all features are ready for RL training...")
+    train_df = validate_data(train_df, data_type='train', stage='processed')
+    val_df = validate_data(val_df, data_type='val', stage='processed')
+    test_df = validate_data(test_df, data_type='test', stage='processed')
+
+    logger.info("")
+    logger.info("="*80)
+    logger.info("STEP 7: SAVE PROCESSED DATA")
+    logger.info("="*80)
 
     # Create output directory
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -164,23 +385,24 @@ def process_crm_data(filepath, output_dir='data/processed'):
     val_df.to_csv(val_path, index=False)
     test_df.to_csv(test_path, index=False)
 
-    print(f"Saved: {train_path}")
-    print(f"Saved: {val_path}")
-    print(f"Saved: {test_path}")
+    logger.info(f"Saved: {train_path}")
+    logger.info(f"Saved: {val_path}")
+    logger.info(f"Saved: {test_path}")
 
     # Save historical statistics for use in environment
     with open(stats_path, 'w') as f:
         json.dump(historical_stats, f, indent=2)
-    print(f"Saved: {stats_path}")
+    logger.info(f"Saved: {stats_path}")
 
-    print("\n" + "="*80)
-    print("DATA PROCESSING COMPLETE - NO LEAKAGE CONFIRMED")
-    print("="*80)
-    print("VERIFICATION:")
-    print("- Temporal split: Train dates < Val dates < Test dates")
-    print("- Statistics: Calculated on train only, mapped to val/test")
-    print("- Features: All use historical data (past events)")
-    print("="*80 + "\n")
+    logger.info("")
+    logger.info("="*80)
+    logger.info("DATA PROCESSING COMPLETE - NO LEAKAGE CONFIRMED")
+    logger.info("="*80)
+    logger.debug("VERIFICATION:")
+    logger.debug("- Temporal split: Train dates < Val dates < Test dates")
+    logger.debug("- Statistics: Calculated on train only, mapped to val/test")
+    logger.debug("- Features: All use historical data (past events)")
+    logger.info("="*80)
 
     return train_df, val_df, test_df, historical_stats
 
@@ -298,10 +520,10 @@ if __name__ == "__main__":
     )
 
     # Verify no leakage
-    print("\nVERIFICATION CHECK:")
-    print(f"Train subscription rate: {train_df['Subscribed_Binary'].mean()*100:.2f}%")
-    print(f"Val subscription rate: {val_df['Subscribed_Binary'].mean()*100:.2f}%")
-    print(f"Test subscription rate: {test_df['Subscribed_Binary'].mean()*100:.2f}%")
+    logger.info("\nVERIFICATION CHECK:")
+    logger.info(f"Train subscription rate: {train_df['Subscribed_Binary'].mean()*100:.2f}%")
+    logger.info(f"Val subscription rate: {val_df['Subscribed_Binary'].mean()*100:.2f}%")
+    logger.info(f"Test subscription rate: {test_df['Subscribed_Binary'].mean()*100:.2f}%")
 
     # Check state vector can be created
     sample = train_df.iloc[0]
@@ -312,8 +534,8 @@ if __name__ == "__main__":
         'Country_ConvRate', 'Education_ConvRate', 'Stages_Completed'
     ]
 
-    print(f"\nSample state vector (16 dimensions):")
+    logger.debug(f"\nSample state vector (16 dimensions):")
     for i, feat in enumerate(state_features):
-        print(f"  {i}: {feat} = {sample[feat]:.4f}")
+        logger.debug(f"  {i}: {feat} = {sample[feat]:.4f}")
 
-    print("\nData processing ready for RL environment!")
+    logger.info("\nData processing ready for RL environment!")

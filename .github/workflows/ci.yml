@@ -1,0 +1,97 @@
+name: CI/CD Pipeline
+
+# Trigger workflow on push to main or any pull request
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Test on multiple Python versions
+      matrix:
+        python-version: ['3.10', '3.11']
+      # Don't cancel all jobs if one fails
+      fail-fast: false
+
+    steps:
+    # Step 1: Checkout code from repository
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Step 2: Set up Python environment
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'  # Cache pip dependencies for faster builds
+
+    # Step 3: Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    # Step 4: Run data processing validation
+    - name: Validate data processing module
+      run: |
+        python -c "from src.data_processing import validate_data; print('✅ Data processing module imports successfully')"
+
+    # Step 5: Run pytest with coverage
+    - name: Run pytest with coverage
+      run: |
+        pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=xml
+
+    # Step 6: Upload coverage to Codecov (optional)
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: matrix.python-version == '3.10'  # Only upload once
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false  # Don't fail if codecov upload fails
+      continue-on-error: true  # Don't fail build if codecov fails
+
+    # Step 7: Display test summary
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "================================"
+        echo "Test Results Summary"
+        echo "================================"
+        echo "Python Version: ${{ matrix.python-version }}"
+        echo "Status: ${{ job.status }}"
+        echo "================================"
+
+  # Lint job (optional but recommended for production)
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install linting tools
+      run: |
+        pip install flake8
+
+    - name: Run flake8 linter
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings (won't fail build)
+        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      continue-on-error: true  # Don't fail build on linting issues

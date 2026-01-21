@@ -14,10 +14,23 @@ NUANCE #6: Hyperparameter Choices
 INTERVIEW PREP: Be able to justify EACH hyperparameter value!
 """
 
+import logging
 import numpy as np
 from collections import defaultdict
 import pickle
 from pathlib import Path
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 class QLearningAgent:
@@ -77,15 +90,15 @@ class QLearningAgent:
         self.training_steps = 0
         self.episodes_trained = 0
 
-        print("\n" + "="*80)
-        print("Q-LEARNING AGENT INITIALIZED")
-        print("="*80)
-        print(f"Actions: {n_actions}")
-        print(f"Learning rate (alpha): {self.alpha}")
-        print(f"Discount factor (gamma): {self.gamma}")
-        print(f"Epsilon: {epsilon_start} -> {epsilon_end} (decay: {epsilon_decay})")
-        print(f"Expected epsilon=0.01 at episode: ~{int(np.log(epsilon_end/epsilon_start)/np.log(epsilon_decay))}")
-        print("="*80 + "\n")
+        logger.info("="*80)
+        logger.info("Q-LEARNING AGENT INITIALIZED")
+        logger.info("="*80)
+        logger.info(f"Actions: {n_actions}")
+        logger.debug(f"Learning rate (alpha): {self.alpha}")
+        logger.debug(f"Discount factor (gamma): {self.gamma}")
+        logger.debug(f"Epsilon: {epsilon_start} -> {epsilon_end} (decay: {epsilon_decay})")
+        logger.debug(f"Expected epsilon=0.01 at episode: ~{int(np.log(epsilon_end/epsilon_start)/np.log(epsilon_decay))}")
+        logger.info("="*80)
 
     def _discretize_state(self, state):
         """
@@ -254,9 +267,9 @@ class QLearningAgent:
         with open(filepath, 'wb') as f:
             pickle.dump(save_dict, f)
 
-        print(f"Agent saved to: {filepath}")
-        print(f"  Q-table size: {len(self.q_table):,} states")
-        print(f"  Episodes trained: {self.episodes_trained:,}")
+        logger.info(f"Agent saved to: {filepath}")
+        logger.debug(f"  Q-table size: {len(self.q_table):,} states")
+        logger.debug(f"  Episodes trained: {self.episodes_trained:,}")
 
     def load(self, filepath):
         """
@@ -274,10 +287,10 @@ class QLearningAgent:
         self.training_steps = save_dict['training_steps']
         self.episodes_trained = save_dict['episodes_trained']
 
-        print(f"Agent loaded from: {filepath}")
-        print(f"  Q-table size: {len(self.q_table):,} states")
-        print(f"  Episodes trained: {self.episodes_trained:,}")
-        print(f"  Current epsilon: {self.epsilon:.4f}")
+        logger.info(f"Agent loaded from: {filepath}")
+        logger.debug(f"  Q-table size: {len(self.q_table):,} states")
+        logger.debug(f"  Episodes trained: {self.episodes_trained:,}")
+        logger.debug(f"  Current epsilon: {self.epsilon:.4f}")
 
     def get_q_table_stats(self):
         """
@@ -312,9 +325,9 @@ if __name__ == "__main__":
 
     INTERVIEW PREP: Understand each component!
     """
-    print("\n" + "="*80)
-    print("TESTING Q-LEARNING AGENT")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TESTING Q-LEARNING AGENT")
+    logger.info("="*80)
 
     # Create agent
     agent = QLearningAgent(
@@ -326,9 +339,9 @@ if __name__ == "__main__":
         epsilon_decay=0.995
     )
 
-    print("\n" + "="*80)
-    print("TEST 1: State Discretization")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 1: State Discretization")
+    logger.info("="*80)
 
     # Test continuous state discretization
     state = np.array([
@@ -339,31 +352,31 @@ if __name__ == "__main__":
     ], dtype=np.float32)
 
     discrete = agent._discretize_state(state)
-    print(f"Continuous state:\n{state}")
-    print(f"\nDiscretized state (2 decimals):\n{discrete}")
+    logger.debug(f"Continuous state:\n{state}")
+    logger.debug(f"Discretized state (2 decimals):\n{discrete}")
 
-    print("\n" + "="*80)
-    print("TEST 2: Action Selection")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 2: Action Selection")
+    logger.info("="*80)
 
     # Test epsilon-greedy
-    print(f"Epsilon: {agent.epsilon}")
+    logger.debug(f"Epsilon: {agent.epsilon}")
     actions = [agent.select_action(state, training=True) for _ in range(10)]
-    print(f"10 training actions (epsilon-greedy): {actions}")
-    print(f"Should be mostly random (epsilon=1.0)")
+    logger.debug(f"10 training actions (epsilon-greedy): {actions}")
+    logger.debug(f"Should be mostly random (epsilon=1.0)")
 
     # Set epsilon to 0 for testing exploitation
     agent.epsilon = 0.0
     actions = [agent.select_action(state, training=True) for _ in range(10)]
-    print(f"\n10 actions with epsilon=0 (greedy): {actions}")
-    print(f"Should be all same (best action)")
+    logger.debug(f"10 actions with epsilon=0 (greedy): {actions}")
+    logger.debug(f"Should be all same (best action)")
 
     # Reset epsilon
     agent.epsilon = 1.0
 
-    print("\n" + "="*80)
-    print("TEST 3: Q-value Updates")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 3: Q-value Updates")
+    logger.info("="*80)
 
     # Simulate some updates
     for i in range(5):
@@ -376,13 +389,13 @@ if __name__ == "__main__":
         agent.update(state, action, reward, next_state, done)
 
     stats = agent.get_q_table_stats()
-    print(f"After 5 updates:")
-    print(f"  States in Q-table: {stats['num_states']}")
-    print(f"  Average max Q: {stats['avg_max_q']:.2f}")
+    logger.info(f"After 5 updates:")
+    logger.debug(f"  States in Q-table: {stats['num_states']}")
+    logger.debug(f"  Average max Q: {stats['avg_max_q']:.2f}")
 
-    print("\n" + "="*80)
-    print("TEST 4: Epsilon Decay")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 4: Epsilon Decay")
+    logger.info("="*80)
 
     agent.epsilon = 1.0
     epsilons = [agent.epsilon]
@@ -391,14 +404,14 @@ if __name__ == "__main__":
         agent.decay_epsilon()
         if i in [99, 499, 999]:
             epsilons.append(agent.epsilon)
-            print(f"Episode {i+1}: epsilon = {agent.epsilon:.4f}")
+            logger.debug(f"Episode {i+1}: epsilon = {agent.epsilon:.4f}")
 
-    print(f"\nEpsilon trajectory: 1.0 -> {epsilons[-1]:.4f}")
-    print(f"Expected to reach ~0.01 around episode 1000")
+    logger.debug(f"Epsilon trajectory: 1.0 -> {epsilons[-1]:.4f}")
+    logger.debug(f"Expected to reach ~0.01 around episode 1000")
 
-    print("\n" + "="*80)
-    print("TEST 5: Save/Load")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 5: Save/Load")
+    logger.info("="*80)
 
     # Save agent
     agent.save('checkpoints/test_agent.pkl')
@@ -407,10 +420,10 @@ if __name__ == "__main__":
     new_agent = QLearningAgent()
     new_agent.load('checkpoints/test_agent.pkl')
 
-    print(f"\nOriginal Q-table size: {len(agent.q_table)}")
-    print(f"Loaded Q-table size: {len(new_agent.q_table)}")
-    print(f"Match: {len(agent.q_table) == len(new_agent.q_table)}")
+    logger.debug(f"Original Q-table size: {len(agent.q_table)}")
+    logger.debug(f"Loaded Q-table size: {len(new_agent.q_table)}")
+    logger.debug(f"Match: {len(agent.q_table) == len(new_agent.q_table)}")
 
-    print("\nAgent tests complete!")
-    print("Ready for training!")
-    print("="*80 + "\n")
+    logger.info("Agent tests complete!")
+    logger.info("Ready for training!")
+    logger.info("="*80)

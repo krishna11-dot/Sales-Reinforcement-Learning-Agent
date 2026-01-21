@@ -11,10 +11,23 @@ Key difference from baseline agent:
 - Actions 16-21: CRM actions (terminal)
 """
 
+import logging
 import numpy as np
 from collections import defaultdict
 import pickle
 from pathlib import Path
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 class QLearningAgentFeatureSelection:
@@ -63,15 +76,15 @@ class QLearningAgentFeatureSelection:
         self.training_steps = 0
         self.episodes_trained = 0
 
-        print("\n" + "="*80)
-        print("Q-LEARNING AGENT WITH FEATURE SELECTION INITIALIZED")
-        print("="*80)
-        print(f"Actions: {n_actions} (16 feature toggles + 6 CRM actions)")
-        print(f"Learning rate (alpha): {self.alpha}")
-        print(f"Discount factor (gamma): {self.gamma}")
-        print(f"Epsilon: {epsilon_start} -> {epsilon_end} (decay: {epsilon_decay})")
-        print(f"Expected epsilon=0.01 at episode: ~{int(np.log(epsilon_end/epsilon_start)/np.log(epsilon_decay))}")
-        print("="*80 + "\n")
+        logger.info("="*80)
+        logger.info("Q-LEARNING AGENT WITH FEATURE SELECTION INITIALIZED")
+        logger.info("="*80)
+        logger.info(f"Actions: {n_actions} (16 feature toggles + 6 CRM actions)")
+        logger.debug(f"Learning rate (alpha): {self.alpha}")
+        logger.debug(f"Discount factor (gamma): {self.gamma}")
+        logger.debug(f"Epsilon: {epsilon_start} -> {epsilon_end} (decay: {epsilon_decay})")
+        logger.debug(f"Expected epsilon=0.01 at episode: ~{int(np.log(epsilon_end/epsilon_start)/np.log(epsilon_decay))}")
+        logger.info("="*80)
 
     def _discretize_state(self, state):
         """
@@ -186,9 +199,9 @@ class QLearningAgentFeatureSelection:
         with open(filepath, 'wb') as f:
             pickle.dump(save_dict, f)
 
-        print(f"Agent saved to: {filepath}")
-        print(f"  Q-table size: {len(self.q_table):,} states")
-        print(f"  Episodes trained: {self.episodes_trained:,}")
+        logger.info(f"Agent saved to: {filepath}")
+        logger.debug(f"  Q-table size: {len(self.q_table):,} states")
+        logger.debug(f"  Episodes trained: {self.episodes_trained:,}")
 
     def load(self, filepath):
         """
@@ -206,10 +219,10 @@ class QLearningAgentFeatureSelection:
         self.training_steps = save_dict['training_steps']
         self.episodes_trained = save_dict['episodes_trained']
 
-        print(f"Agent loaded from: {filepath}")
-        print(f"  Q-table size: {len(self.q_table):,} states")
-        print(f"  Episodes trained: {self.episodes_trained:,}")
-        print(f"  Current epsilon: {self.epsilon:.4f}")
+        logger.info(f"Agent loaded from: {filepath}")
+        logger.debug(f"  Q-table size: {len(self.q_table):,} states")
+        logger.debug(f"  Episodes trained: {self.episodes_trained:,}")
+        logger.debug(f"  Current epsilon: {self.epsilon:.4f}")
 
     def get_q_table_stats(self):
         """
@@ -239,9 +252,9 @@ if __name__ == "__main__":
     """
     Test agent functionality.
     """
-    print("\n" + "="*80)
-    print("TESTING FEATURE SELECTION AGENT")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TESTING FEATURE SELECTION AGENT")
+    logger.info("="*80)
 
     # Create agent
     agent = QLearningAgentFeatureSelection(
@@ -253,32 +266,32 @@ if __name__ == "__main__":
         epsilon_decay=0.995
     )
 
-    print("\n" + "="*80)
-    print("TEST 1: State Discretization (32-dim)")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 1: State Discretization (32-dim)")
+    logger.info("="*80)
 
     # Test 32-dim state discretization
     state = np.random.rand(32).astype(np.float32)
     discrete = agent._discretize_state(state)
-    print(f"State dimension: {state.shape}")
-    print(f"Discretized state length: {len(discrete)}")
+    logger.debug(f"State dimension: {state.shape}")
+    logger.debug(f"Discretized state length: {len(discrete)}")
 
-    print("\n" + "="*80)
-    print("TEST 2: Action Selection (0-21)")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 2: Action Selection (0-21)")
+    logger.info("="*80)
 
     actions = [agent.select_action(state, training=True) for _ in range(20)]
-    print(f"20 training actions (epsilon-greedy): {actions}")
-    print(f"Should include both toggles (0-15) and CRM actions (16-21)")
+    logger.debug(f"20 training actions (epsilon-greedy): {actions}")
+    logger.debug(f"Should include both toggles (0-15) and CRM actions (16-21)")
 
     # Count action types
     toggles = sum(1 for a in actions if a < 16)
     crm = sum(1 for a in actions if a >= 16)
-    print(f"Toggles (0-15): {toggles}, CRM actions (16-21): {crm}")
+    logger.debug(f"Toggles (0-15): {toggles}, CRM actions (16-21): {crm}")
 
-    print("\n" + "="*80)
-    print("TEST 3: Q-value Updates")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 3: Q-value Updates")
+    logger.info("="*80)
 
     # Simulate some updates
     for i in range(10):
@@ -291,11 +304,11 @@ if __name__ == "__main__":
         agent.update(state, action, reward, next_state, done)
 
     stats = agent.get_q_table_stats()
-    print(f"After 10 updates:")
-    print(f"  States in Q-table: {stats['num_states']}")
-    print(f"  Average max Q: {stats['avg_max_q']:.2f}")
+    logger.info(f"After 10 updates:")
+    logger.debug(f"  States in Q-table: {stats['num_states']}")
+    logger.debug(f"  Average max Q: {stats['avg_max_q']:.2f}")
 
-    print("\n" + "="*80)
-    print("Agent tests complete!")
-    print("Ready for training!")
-    print("="*80 + "\n")
+    logger.info("="*80)
+    logger.info("Agent tests complete!")
+    logger.info("Ready for training!")
+    logger.info("="*80)

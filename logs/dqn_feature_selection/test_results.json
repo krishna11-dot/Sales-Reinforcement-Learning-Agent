@@ -1,0 +1,11 @@
+{
+  "subscription_rate": 1.0876132930513596,
+  "first_call_rate": 5.6797583081570995,
+  "avg_reward": -50.762020111083984,
+  "baseline_sub_rate": 0.44,
+  "q_learning_fs_rate": 0.8,
+  "improvement_factor": 2.4718483932985444,
+  "vs_q_learning_fs": 1.3595166163141994,
+  "n_episodes": 1655,
+  "total_subscriptions": 18
+}

@@ -15,11 +15,24 @@ USAGE:
     python src/analyze_features.py
 """
 
+import logging
 import numpy as np
 import pandas as pd
 from collections import Counter
 import json
 from pathlib import Path
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 # Import the feature selection agent (will be created next)
 from agent_feature_selection import QLearningAgentFeatureSelection
@@ -38,20 +51,20 @@ def analyze_feature_importance(agent_path='checkpoints/agent_feature_selection_f
     Returns:
         dict: Analysis results
     """
-    print("\n" + "="*80)
-    print("FEATURE IMPORTANCE ANALYSIS")
-    print("="*80)
-    print(f"Agent: {agent_path}")
-    print(f"Episodes: {n_episodes}")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("FEATURE IMPORTANCE ANALYSIS")
+    logger.info("="*80)
+    logger.info(f"Agent: {agent_path}")
+    logger.info(f"Episodes: {n_episodes}")
+    logger.info("="*80)
 
     # Load trained agent
     agent = QLearningAgentFeatureSelection(n_actions=22)
     agent.load(agent_path)
 
-    print(f"\nAgent loaded successfully")
-    print(f"  Q-table size: {len(agent.q_table):,} states")
-    print(f"  Episodes trained: {agent.episodes_trained:,}")
+    logger.info(f"Agent loaded successfully")
+    logger.debug(f"  Q-table size: {len(agent.q_table):,} states")
+    logger.debug(f"  Episodes trained: {agent.episodes_trained:,}")
 
     # Load test environment
     env = CRMFeatureSelectionEnv(
@@ -74,11 +87,11 @@ def analyze_feature_importance(agent_path='checkpoints/agent_feature_selection_f
     feature_selection_success = Counter()
     feature_selection_failure = Counter()
 
-    print("\nRunning evaluation episodes...")
+    logger.info("Running evaluation episodes...")
 
     for episode in range(n_episodes):
         if (episode + 1) % 100 == 0:
-            print(f"  Progress: {episode+1}/{n_episodes}")
+            logger.debug(f"  Progress: {episode+1}/{n_episodes}")
 
         state, _ = env.reset()
         done = False
@@ -123,42 +136,42 @@ def analyze_feature_importance(agent_path='checkpoints/agent_feature_selection_f
     n_success = len(results['success_episodes'])
     n_failure = len(results['failure_episodes'])
 
-    print("\n" + "="*80)
-    print("RESULTS SUMMARY")
-    print("="*80)
-    print(f"Success episodes: {n_success} ({n_success/n_episodes*100:.1f}%)")
-    print(f"Failure episodes: {n_failure} ({n_failure/n_episodes*100:.1f}%)")
+    logger.info("="*80)
+    logger.info("RESULTS SUMMARY")
+    logger.info("="*80)
+    logger.info(f"Success episodes: {n_success} ({n_success/n_episodes*100:.1f}%)")
+    logger.info(f"Failure episodes: {n_failure} ({n_failure/n_episodes*100:.1f}%)")
 
     # Feature importance ranking (success episodes)
-    print("\n" + "="*80)
-    print("FEATURE IMPORTANCE (Success Episodes)")
-    print("="*80)
-    print(f"{'Rank':<6} {'Feature':<30} {'Frequency':<12} {'Percentage'}")
-    print("-" * 80)
+    logger.info("="*80)
+    logger.info("FEATURE IMPORTANCE (Success Episodes)")
+    logger.info("="*80)
+    logger.info(f"{'Rank':<6} {'Feature':<30} {'Frequency':<12} {'Percentage'}")
+    logger.info("-" * 80)
 
     for rank, (feature, count) in enumerate(feature_selection_success.most_common(), 1):
         percentage = (count / n_success) * 100 if n_success > 0 else 0
-        print(f"{rank:<6} {feature:<30} {count:<12} {percentage:.1f}%")
+        logger.debug(f"{rank:<6} {feature:<30} {count:<12} {percentage:.1f}%")
 
     # Average features used
     avg_features_success = np.mean([e['n_features'] for e in results['success_episodes']]) if n_success > 0 else 0
     avg_features_failure = np.mean([e['n_features'] for e in results['failure_episodes']]) if n_failure > 0 else 0
     avg_features_all = np.mean([e['n_features'] for e in results['all_episodes']])
 
-    print("\n" + "="*80)
-    print("FEATURE SET SIZE")
-    print("="*80)
-    print(f"Average features used (Success):  {avg_features_success:.2f}")
-    print(f"Average features used (Failure):  {avg_features_failure:.2f}")
-    print(f"Average features used (Overall):  {avg_features_all:.2f}")
+    logger.info("="*80)
+    logger.info("FEATURE SET SIZE")
+    logger.info("="*80)
+    logger.info(f"Average features used (Success):  {avg_features_success:.2f}")
+    logger.debug(f"Average features used (Failure):  {avg_features_failure:.2f}")
+    logger.debug(f"Average features used (Overall):  {avg_features_all:.2f}")
 
-    print(f"\nInsight: Agent learned to use ~{avg_features_success:.1f} features")
-    print(f"         instead of all 16 features")
+    logger.info(f"Insight: Agent learned to use ~{avg_features_success:.1f} features")
+    logger.debug(f"         instead of all 16 features")
 
     # Most common feature combinations
-    print("\n" + "="*80)
-    print("TOP FEATURE COMBINATIONS (Success)")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TOP FEATURE COMBINATIONS (Success)")
+    logger.info("="*80)
 
     combo_counter = Counter()
     for episode in results['success_episodes']:
@@ -166,35 +179,35 @@ def analyze_feature_importance(agent_path='checkpoints/agent_feature_selection_f
             combo = tuple(sorted(episode['final_features']))
             combo_counter[combo] += 1
 
-    print(f"{'Rank':<6} {'Combination':<50} {'Count':<8} {'Percentage'}")
-    print("-" * 80)
+    logger.info(f"{'Rank':<6} {'Combination':<50} {'Count':<8} {'Percentage'}")
+    logger.info("-" * 80)
 
     for rank, (combo, count) in enumerate(combo_counter.most_common(10), 1):
         percentage = (count / n_success) * 100 if n_success > 0 else 0
         combo_str = ', '.join(combo[:4])  # Show first 4 features
         if len(combo) > 4:
             combo_str += f" + {len(combo)-4} more"
-        print(f"{rank:<6} {combo_str:<50} {count:<8} {percentage:.1f}%")
+        logger.debug(f"{rank:<6} {combo_str:<50} {count:<8} {percentage:.1f}%")
 
     # Feature toggle behavior
     avg_toggles_success = np.mean([e['feature_toggles'] for e in results['success_episodes']]) if n_success > 0 else 0
     avg_toggles_failure = np.mean([e['feature_toggles'] for e in results['failure_episodes']]) if n_failure > 0 else 0
 
-    print("\n" + "="*80)
-    print("FEATURE TOGGLE BEHAVIOR")
-    print("="*80)
-    print(f"Average toggles (Success): {avg_toggles_success:.2f}")
-    print(f"Average toggles (Failure): {avg_toggles_failure:.2f}")
+    logger.info("="*80)
+    logger.info("FEATURE TOGGLE BEHAVIOR")
+    logger.info("="*80)
+    logger.debug(f"Average toggles (Success): {avg_toggles_success:.2f}")
+    logger.debug(f"Average toggles (Failure): {avg_toggles_failure:.2f}")
 
     # Performance metrics
     avg_reward_success = np.mean([e['reward'] for e in results['success_episodes']]) if n_success > 0 else 0
     avg_reward_failure = np.mean([e['reward'] for e in results['failure_episodes']]) if n_failure > 0 else 0
 
-    print("\n" + "="*80)
-    print("PERFORMANCE METRICS")
-    print("="*80)
-    print(f"Average reward (Success): {avg_reward_success:.2f}")
-    print(f"Average reward (Failure): {avg_reward_failure:.2f}")
+    logger.info("="*80)
+    logger.info("PERFORMANCE METRICS")
+    logger.info("="*80)
+    logger.info(f"Average reward (Success): {avg_reward_success:.2f}")
+    logger.debug(f"Average reward (Failure): {avg_reward_failure:.2f}")
 
     # Save results
     results_summary = {
@@ -221,25 +234,25 @@ def analyze_feature_importance(agent_path='checkpoints/agent_feature_selection_f
     with open(output_path, 'w') as f:
         json.dump(results_summary, f, indent=2)
 
-    print(f"\nResults saved to: {output_path}")
+    logger.info(f"Results saved to: {output_path}")
 
-    print("\n" + "="*80)
-    print("KEY INSIGHTS")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("KEY INSIGHTS")
+    logger.info("="*80)
 
     if n_success > 0:
         top_3_features = [f for f, c in feature_selection_success.most_common(3)]
-        print(f"1. Most important features: {', '.join(top_3_features)}")
-        print(f"2. Optimal feature count: ~{avg_features_success:.1f} features")
-        print(f"3. Agent learns to use {avg_features_success/16*100:.1f}% of available features")
+        logger.info(f"1. Most important features: {', '.join(top_3_features)}")
+        logger.info(f"2. Optimal feature count: ~{avg_features_success:.1f} features")
+        logger.info(f"3. Agent learns to use {avg_features_success/16*100:.1f}% of available features")
 
         if avg_features_success < 16:
             savings = (16 - avg_features_success) / 16 * 100
-            print(f"4. Data collection savings: ~{savings:.0f}% fewer features needed")
+            logger.info(f"4. Data collection savings: ~{savings:.0f}% fewer features needed")
     else:
-        print("No successful episodes - agent may need more training")
+        logger.warning("No successful episodes - agent may need more training")
 
-    print("="*80 + "\n")
+    logger.info("="*80)
 
     return results_summary
 
@@ -250,15 +263,15 @@ def compare_feature_sets():
 
     Answers: "What happens if we only use top N features?"
     """
-    print("\n" + "="*80)
-    print("FEATURE SET COMPARISON")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("FEATURE SET COMPARISON")
+    logger.info("="*80)
 
     # This would require training multiple agents with different feature sets
     # For now, we analyze the learned feature selection patterns
 
-    print("This analysis shows which feature combinations work best")
-    print("Based on the trained agent's learned policy")
+    logger.info("This analysis shows which feature combinations work best")
+    logger.info("Based on the trained agent's learned policy")
 
     # Would implement: Test agent with only top 3, top 5, top 10 features
     # Compare subscription rates for each configuration
@@ -287,5 +300,5 @@ if __name__ == "__main__":
         n_episodes=args.episodes
     )
 
-    print("\nFeature analysis complete!")
-    print("Check logs/feature_analysis_results.json for detailed results")
+    logger.info("Feature analysis complete!")
+    logger.info("Check logs/feature_analysis_results.json for detailed results")

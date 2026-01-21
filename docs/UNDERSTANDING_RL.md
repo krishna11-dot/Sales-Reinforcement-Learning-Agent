@@ -14,7 +14,7 @@ Your advisor wants you to deeply understand:
 
 ### Raw Data Values
 
-The Education column has **31 different categories** (B1, B8, B9, B10, B11, ..., B30):
+The Education column has **30 different categories** (B1, B2, B3, ..., B30):
 
 ```
 B27: 1552 customers (most common)
@@ -26,7 +26,10 @@ B1:  381 customers
 B30: 215 customers
 ```
 
-These are **education categories** coded as B1-B30. We don't know what they actually mean (could be degree types, education systems, or arbitrary codes). We **assumed** they represent ordered levels (B1=lowest, B30=highest) but this may not be accurate.
+**UPDATE FROM SEMIH (Data Provider):**
+These are **different educational institutions (bootcamps)**. The values B1-B30 are **aliases** of real companies to prevent data leakage. They are **NOT ordered** - B30 is not "better" or "higher" than B1. They're just different bootcamp institutions.
+
+**Important Discovery:** We initially **assumed** they were ordered levels (B1=lowest, B30=highest), but this assumption is **WRONG**. They should be treated as **unordered categorical** data.
 
 ### What We Did in Code
 
@@ -48,37 +51,57 @@ This converts:
 - ...
 - B30 → 30
 
-**Result:** Education_Encoded ranges from 0 to 30
+**Result:** Education_Encoded ranges from 0 to 29
 
-**Important Assumption:** This assumes B1-B30 are **ordered** (B30 is "higher" than B1). If they're just category codes without order, **one-hot encoding** would be more appropriate.
+**CRITICAL ISSUE DISCOVERED:**
+- ❌ This label encoding **assumes B1-B30 are ordered** (B30 is "higher" than B1)
+- ❌ But they're actually **unordered bootcamp institutions** (no ranking!)
+- ❌ Correlation between label encoding and conversion rate: **0.14** (NO relationship)
+- ✅ Correct approach would be **one-hot encoding** or just use Education_ConvRate
 
 **Step 2: Normalization** (scale to 0-1)
 ```python
 # Normalize to [0, 1] for RL agent
-Education_Normalized = Education_Encoded / 30.0
+Education_Normalized = Education_Encoded / 29.0
 ```
 
 This converts:
-- 0 → 0.0 (lowest education)
-- 15 → 0.5 (middle education)
-- 30 → 1.0 (highest education)
+- 0 → 0.0 (B1)
+- 15 → 0.52 (B16)
+- 29 → 1.0 (B9)
 
-**Step 3: Add Conversion Rate Feature**
+**PROBLEM:** This treats bootcamps as if they're on a scale (lower to higher), but they're just different schools!
+
+**Step 3: Add Conversion Rate Feature** (THIS SAVES US!)
 ```python
-# Calculate how well each education level converts
+# Calculate how well each bootcamp converts
 education_conv_rate = df.groupby('Education')['Subscribed'].mean()
 df['Education_ConvRate'] = df['Education'].map(education_conv_rate)
 ```
 
-This adds a feature showing: "How often do people with B27 education subscribe?"
+This adds a feature showing: "How often do students from bootcamp B27 subscribe?"
+
+**Example values:**
+- B8:  0.78% (highest)
+- B27: 0.71%
+- B30: 0.47%
+- B11: 0.33%
+- Most others: 0.00%
+
+**This is CORRECT** because it captures actual performance without assuming ordering!
 
 ### Why This Matters for RL
 
 The agent uses **both**:
-1. **Education_Encoded**: Which education level (0.0 to 1.0)
-2. **Education_ConvRate**: How well this education converts (historical conversion rate)
+1. ❌ **Education_Encoded**: Label encoded 0-29 (WRONG: assumes ordering)
+2. ✅ **Education_ConvRate**: Actual conversion rate per bootcamp (CORRECT!)
 
-The agent learns: "People with B27 education (normalized to 0.87) have 0.6% conversion rate, so I should take action X"
+**The Saving Grace:**
+- Even though Education_Encoded is wrong, Education_ConvRate provides the correct signal
+- The model learns primarily from Education_ConvRate: "B27 has 0.71% conversion, B8 has 0.78%"
+- That's why the model still achieves 1.50% (3.4x improvement) despite the encoding mistake!
+
+**For interviews:** "I discovered this issue after training. Fortunately, I included Education_ConvRate which captured the correct patterns. For future work, I would remove Education_Encoded and rely solely on Education_ConvRate, or use one-hot encoding if the state space allows."
 
 ---
 

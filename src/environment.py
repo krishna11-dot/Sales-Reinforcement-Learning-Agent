@@ -14,6 +14,7 @@ NUANCE #4: Reward Shaping for Sparse Rewards
 INTERVIEW PREP: Be able to explain WHY batch-level vs dataset-level oversampling!
 """
 
+import logging
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -21,12 +22,24 @@ import pandas as pd
 import json
 from pathlib import Path
 
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
 
 class CRMSalesFunnelEnv(gym.Env):
     """
     Gymnasium environment for CRM sales pipeline reinforcement learning.
 
-    Implements mentor's "modular input -> decision box -> output" framework:
+    Implements modular "input -> decision box -> output" framework:
     - Input modules: Customer data, temporal features, pipeline position
     - Decision box: RL agent (Q-Learning)
     - Output: Action + consequences (rewards, state transitions)
@@ -53,7 +66,7 @@ class CRMSalesFunnelEnv(gym.Env):
         self.mode = mode
 
         # Load data
-        print(f"Loading data from: {data_path}")
+        logger.info(f"Loading data from: {data_path}")
         self.df = pd.read_csv(data_path)
 
         # Load historical stats
@@ -66,16 +79,16 @@ class CRMSalesFunnelEnv(gym.Env):
         self.first_call_customers = self.df[self.df['Had_First_Call'] == 1].copy()
         self.all_customers = self.df.copy()
 
-        print("\n" + "="*80)
-        print(f"CRM SALES FUNNEL ENVIRONMENT INITIALIZED ({mode} mode)")
-        print("="*80)
-        print(f"Total customers: {len(self.df):,}")
-        print(f"Subscribed: {len(self.subscribed_customers):,} " +
+        logger.info("="*80)
+        logger.info(f"CRM SALES FUNNEL ENVIRONMENT INITIALIZED ({mode} mode)")
+        logger.info("="*80)
+        logger.info(f"Total customers: {len(self.df):,}")
+        logger.debug(f"Subscribed: {len(self.subscribed_customers):,} " +
               f"({len(self.subscribed_customers)/len(self.df)*100:.2f}%)")
-        print(f"Had first call: {len(self.first_call_customers):,} " +
+        logger.debug(f"Had first call: {len(self.first_call_customers):,} " +
               f"({len(self.first_call_customers)/len(self.df)*100:.2f}%)")
-        print(f"Class imbalance: {(len(self.df)-len(self.subscribed_customers))/len(self.subscribed_customers):.0f}:1")
-        print("="*80)
+        logger.debug(f"Class imbalance: {(len(self.df)-len(self.subscribed_customers))/len(self.subscribed_customers):.0f}:1")
+        logger.info("="*80)
 
         # ACTION SPACE: 6 discrete actions
         # NUANCE: Costs reflect real sales team effort/expense
@@ -97,14 +110,14 @@ class CRMSalesFunnelEnv(gym.Env):
             5: -20   # Manager: $20
         }
 
-        # OBSERVATION SPACE: 16-dimensional continuous state
-        # [0-30]: Education (31 categories)
+        # OBSERVATION SPACE: 15-dimensional continuous state
         # [0-103]: Country (104 categories)
         # [0-6]: Stage
         # [0-1]: Status, temporal features, binary flags, conv rates
+        # NOTE: Education_Encoded removed (unordered bootcamp aliases, not ordinal)
         self.observation_space = spaces.Box(
-            low=np.array([0]*16, dtype=np.float32),
-            high=np.array([30, 103, 6, 1, 1, 1, 1, 1,
+            low=np.array([0]*15, dtype=np.float32),
+            high=np.array([103, 6, 1, 1, 1, 1, 1,
                           1, 1, 1, 1, 1, 1, 1, 5], dtype=np.float32),
             dtype=np.float32
         )
@@ -123,7 +136,7 @@ class CRMSalesFunnelEnv(gym.Env):
         """
         Reset environment and return initial state.
 
-        NUANCE #3: Batch-level oversampling (MENTOR APPROVED!)
+        NUANCE #3: Batch-level oversampling
         - 30% subscribed customers (positive examples)
         - 30% first call customers (partial success)
         - 40% random (mostly negatives)
@@ -306,33 +319,33 @@ class CRMSalesFunnelEnv(gym.Env):
         c = self.current_customer_state
 
         state = np.array([
-            # DEMOGRAPHICS (2 features) - Static, known at lead creation
-            c['Education_Encoded'],           # 0: Categorical 0-30
-            c['Country_Encoded'],             # 1: Categorical 0-103
+            # DEMOGRAPHICS (1 feature) - Static, known at lead creation
+            # NOTE: Education_Encoded removed (B1-B30 are unordered bootcamp aliases)
+            c['Country_Encoded'],             # 0: Categorical 0-103
 
             # PIPELINE POSITION (2 features) - Current observable status
-            self.current_stage,               # 2: 0-6 encoding
-            c['Status_Active'],               # 3: Binary
+            self.current_stage,               # 1: 0-6 encoding
+            c['Status_Active'],               # 2: Binary
 
             # TEMPORAL (4 features) - All historical (past events)
-            c['Days_Since_First_Norm'],       # 4: [0, 1]
-            c['Days_Since_Last_Norm'],        # 5: [0, 1]
-            c['Days_Between_Norm'],           # 6: [0, 1]
-            c['Contact_Frequency'],           # 7: Engagement frequency
+            c['Days_Since_First_Norm'],       # 3: [0, 1]
+            c['Days_Since_Last_Norm'],        # 4: [0, 1]
+            c['Days_Between_Norm'],           # 5: [0, 1]
+            c['Contact_Frequency'],           # 6: Engagement frequency
 
             # BINARY FLAGS (5 features) - Completed pipeline stages
-            c['Had_First_Call'],              # 8: 0 or 1
-            c['Had_Demo'],                    # 9: 0 or 1
-            c['Had_Survey'],                  # 10: 0 or 1
-            c['Had_Signup'],                  # 11: 0 or 1
-            c['Had_Manager'],                 # 12: 0 or 1
+            c['Had_First_Call'],              # 7: 0 or 1
+            c['Had_Demo'],                    # 8: 0 or 1
+            c['Had_Survey'],                  # 9: 0 or 1
+            c['Had_Signup'],                  # 10: 0 or 1
+            c['Had_Manager'],                 # 11: 0 or 1
 
             # AGGREGATED STATS (2 features) - From train set ONLY
-            c['Country_ConvRate'],            # 13: [0, 1]
-            c['Education_ConvRate'],          # 14: [0, 1]
+            c['Country_ConvRate'],            # 12: [0, 1]
+            c['Education_ConvRate'],          # 13: [0, 1] (per-bootcamp conversion)
 
             # DERIVED (1 feature) - Total stages completed
-            c['Stages_Completed']             # 15: 0-5
+            c['Stages_Completed']             # 14: 0-5
 
         ], dtype=np.float32)
 
@@ -343,10 +356,10 @@ class CRMSalesFunnelEnv(gym.Env):
         Render environment state (optional).
         """
         if mode == 'human':
-            print(f"\nStep {self.steps_taken}/{self.max_steps}")
-            print(f"Stage: {self.current_stage}")
-            print(f"Actions: {[self.action_names[a] for a in self.actions_history]}")
-            print(f"Subscribed: {self.current_customer_state['Subscribed_Binary']}")
+            logger.info(f"Step {self.steps_taken}/{self.max_steps}")
+            logger.info(f"Stage: {self.current_stage}")
+            logger.debug(f"Actions: {[self.action_names[a] for a in self.actions_history]}")
+            logger.debug(f"Subscribed: {self.current_customer_state['Subscribed_Binary']}")
 
 
 if __name__ == "__main__":
@@ -355,9 +368,9 @@ if __name__ == "__main__":
 
     INTERVIEW PREP: Be able to explain each component independently!
     """
-    print("\n" + "="*80)
-    print("TESTING CRM SALES FUNNEL ENVIRONMENT")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TESTING CRM SALES FUNNEL ENVIRONMENT")
+    logger.info("="*80)
 
     # Create environment
     env = CRMSalesFunnelEnv(
@@ -366,12 +379,12 @@ if __name__ == "__main__":
         mode='train'
     )
 
-    print("\nAction Space:", env.action_space)
-    print("Observation Space:", env.observation_space)
+    logger.info(f"Action Space: {env.action_space}")
+    logger.info(f"Observation Space: {env.observation_space}")
 
-    print("\n" + "="*80)
-    print("TEST 1: Batch Oversampling (30/30/40)")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 1: Batch Oversampling (30/30/40)")
+    logger.info("="*80)
 
     # Run 1000 resets to verify sampling distribution
     subscribed_count = 0
@@ -382,21 +395,21 @@ if __name__ == "__main__":
         subscribed_count += info['subscribed']
         first_call_count += info['had_call']
 
-    print(f"Out of 1000 resets:")
-    print(f"  Subscribed: {subscribed_count} ({subscribed_count/10:.1f}%)")
-    print(f"  Expected: ~300 (30%) with batch oversampling")
-    print(f"  Natural rate: ~4 (0.44%) without oversampling")
-    print(f"\nFirst Call: {first_call_count} ({first_call_count/10:.1f}%)")
-    print(f"  Expected: ~500-600 (50-60%) with batch oversampling")
+    logger.info(f"Out of 1000 resets:")
+    logger.info(f"  Subscribed: {subscribed_count} ({subscribed_count/10:.1f}%)")
+    logger.debug(f"  Expected: ~300 (30%) with batch oversampling")
+    logger.debug(f"  Natural rate: ~4 (0.44%) without oversampling")
+    logger.info(f"First Call: {first_call_count} ({first_call_count/10:.1f}%)")
+    logger.debug(f"  Expected: ~500-600 (50-60%) with batch oversampling")
 
-    print("\n" + "="*80)
-    print("TEST 2: Episode Execution")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 2: Episode Execution")
+    logger.info("="*80)
 
     # Run one episode
     state, info = env.reset()
-    print(f"\nInitial state: {state}")
-    print(f"Customer subscribed: {info['subscribed']}")
+    logger.debug(f"Initial state: {state}")
+    logger.info(f"Customer subscribed: {info['subscribed']}")
 
     total_reward = 0
     done, truncated = False, False
@@ -410,30 +423,30 @@ if __name__ == "__main__":
         total_reward += reward
         step += 1
 
-        print(f"\nStep {step}: {step_info['action_name']}")
-        print(f"  Reward: {reward:.1f} (Cost: {step_info['action_cost']}, " +
+        logger.debug(f"Step {step}: {step_info['action_name']}")
+        logger.debug(f"  Reward: {reward:.1f} (Cost: {step_info['action_cost']}, " +
               f"Stage: {step_info['stage_reward']})")
-        print(f"  Stage: {step_info['stage']}")
+        logger.debug(f"  Stage: {step_info['stage']}")
 
         state = next_state
 
-    print(f"\nEpisode finished!")
-    print(f"  Total reward: {total_reward:.1f}")
-    print(f"  Steps: {step}")
-    print(f"  Done: {done} (subscription achieved)")
-    print(f"  Truncated: {truncated} (max steps)")
+    logger.info(f"Episode finished!")
+    logger.info(f"  Total reward: {total_reward:.1f}")
+    logger.info(f"  Steps: {step}")
+    logger.debug(f"  Done: {done} (subscription achieved)")
+    logger.debug(f"  Truncated: {truncated} (max steps)")
 
-    print("\n" + "="*80)
-    print("TEST 3: Reward Range Verification")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("TEST 3: Reward Range Verification")
+    logger.info("="*80)
 
     # Check reward bounds
     min_reward = -10 * 20 - 10  # 10 steps * max cost + failure penalty
     max_reward = 100 + 20 + 15 + 12 + 10 + 8  # Terminal + all intermediate
 
-    print(f"Theoretical reward range: [{min_reward}, {max_reward}]")
-    print(f"Expected typical: [-100, +150]")
+    logger.debug(f"Theoretical reward range: [{min_reward}, {max_reward}]")
+    logger.debug(f"Expected typical: [-100, +150]")
 
-    print("\nEnvironment tests complete!")
-    print("Ready for Q-Learning agent training!")
-    print("="*80 + "\n")
+    logger.info("Environment tests complete!")
+    logger.info("Ready for Q-Learning agent training!")
+    logger.info("="*80)

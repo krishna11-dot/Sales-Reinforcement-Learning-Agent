@@ -11,6 +11,7 @@ ANSWER: "NO! Technical convergence != Business success.
   Must check BOTH: Technical (model learned) AND Business (learned RIGHT thing)"
 """
 
+import logging
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -22,6 +23,18 @@ from pathlib import Path
 # Add parent directory to path for imports
 import sys
 sys.path.append(str(Path(__file__).parent))
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 from environment import CRMSalesFunnelEnv
 from agent import QLearningAgent
@@ -87,14 +100,14 @@ def train_agent(
         'avg_cost': []
     }
 
-    print("\n" + "="*80)
-    print("TRAINING START")
-    print("="*80)
-    print(f"Episodes: {n_episodes:,}")
-    print(f"Log interval: {log_interval:,}")
-    print(f"Save interval: {save_interval:,}")
-    print(f"Batch sampling: 30% subscribed, 30% first call, 40% random")
-    print("="*80 + "\n")
+    logger.info("="*80)
+    logger.info("TRAINING START")
+    logger.info("="*80)
+    logger.info(f"Episodes: {n_episodes:,}")
+    logger.debug(f"Log interval: {log_interval:,}")
+    logger.debug(f"Save interval: {save_interval:,}")
+    logger.debug(f"Batch sampling: 30% subscribed, 30% first call, 40% random")
+    logger.info("="*80)
 
     # Training loop with progress bar
     for episode in tqdm(range(n_episodes), desc="Training"):
@@ -144,18 +157,18 @@ def train_agent(
             sub_rate = np.mean(recent_subs) * 100
             call_rate = np.mean(recent_calls) * 100
 
-            print(f"\n{'='*80}")
-            print(f"Episode {episode + 1:,} / {n_episodes:,}")
-            print(f"{'='*80}")
-            print(f"TECHNICAL METRICS (for debugging):")
-            print(f"  Avg Reward: {avg_reward:.2f}")
-            print(f"  Epsilon: {agent.epsilon:.4f}")
-            print(f"  Q-table size: {len(agent.q_table):,} states")
-            print(f"\nBUSINESS METRICS (for stakeholders):")
-            print(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
-            print(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
-            print(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
-            print(f"{'='*80}")
+            logger.info(f"{'='*80}")
+            logger.info(f"Episode {episode + 1:,} / {n_episodes:,}")
+            logger.info(f"{'='*80}")
+            logger.info(f"TECHNICAL METRICS (for debugging):")
+            logger.info(f"  Avg Reward: {avg_reward:.2f}")
+            logger.debug(f"  Epsilon: {agent.epsilon:.4f}")
+            logger.debug(f"  Q-table size: {len(agent.q_table):,} states")
+            logger.info(f"BUSINESS METRICS (for stakeholders):")
+            logger.info(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
+            logger.debug(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
+            logger.info(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
+            logger.info(f"{'='*80}")
 
             # Store business metrics
             business_metrics['subscription_rate'].append(sub_rate)
@@ -188,20 +201,20 @@ def train_agent(
     # Plot training curves
     plot_training_curves(technical_metrics, 'visualizations')
 
-    print("\n" + "="*80)
-    print("TRAINING COMPLETE")
-    print("="*80)
-    print(f"Final Q-table size: {len(agent.q_table):,} states")
-    print(f"Final epsilon: {agent.epsilon:.4f}")
+    logger.info("="*80)
+    logger.info("TRAINING COMPLETE")
+    logger.info("="*80)
+    logger.info(f"Final Q-table size: {len(agent.q_table):,} states")
+    logger.debug(f"Final epsilon: {agent.epsilon:.4f}")
 
     final_sub_rate = np.mean(technical_metrics['subscriptions'][-1000:]) * 100
     final_call_rate = np.mean(technical_metrics['first_calls'][-1000:]) * 100
 
-    print(f"\nFinal Performance (last 1000 episodes):")
-    print(f"  Subscription rate: {final_sub_rate:.2f}% (baseline: 0.44%)")
-    print(f"  First call rate: {final_call_rate:.2f}% (baseline: 4.0%)")
-    print(f"  Improvement: {final_sub_rate/0.44:.1f}x subscriptions")
-    print("="*80 + "\n")
+    logger.info(f"Final Performance (last 1000 episodes):")
+    logger.info(f"  Subscription rate: {final_sub_rate:.2f}% (baseline: 0.44%)")
+    logger.debug(f"  First call rate: {final_call_rate:.2f}% (baseline: 4.0%)")
+    logger.info(f"  Improvement: {final_sub_rate/0.44:.1f}x subscriptions")
+    logger.info("="*80)
 
     return agent, technical_metrics, business_metrics
 
@@ -249,7 +262,7 @@ def plot_training_curves(metrics, output_dir):
 
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'training_curves.png'), dpi=150)
-    print(f"Training curves saved to: {output_dir}/training_curves.png")
+    logger.info(f"Training curves saved to: {output_dir}/training_curves.png")
     plt.close()
 
 
@@ -261,7 +274,7 @@ if __name__ == "__main__":
         save_interval=10000
     )
 
-    print("\nTraining complete! Check:")
-    print("  - checkpoints/ for saved models")
-    print("  - logs/ for metrics")
-    print("  - visualizations/ for plots")
+    logger.info("Training complete! Check:")
+    logger.info("  - checkpoints/ for saved models")
+    logger.info("  - logs/ for metrics")
+    logger.info("  - visualizations/ for plots")

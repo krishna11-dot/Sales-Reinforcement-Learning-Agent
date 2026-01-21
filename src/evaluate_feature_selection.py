@@ -7,6 +7,7 @@ Evaluates agent on test set and generates business insights including:
 3. How feature selection impacts performance
 """
 
+import logging
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -16,6 +17,18 @@ import sys
 from collections import Counter
 
 sys.path.append(str(Path(__file__).parent))
+
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 from environment_feature_selection import CRMFeatureSelectionEnv
 from agent_feature_selection import QLearningAgentFeatureSelection
@@ -35,9 +48,9 @@ def evaluate_agent(agent_path='checkpoints/agent_feature_selection_final.pkl',
     Returns:
         results: Dictionary with evaluation metrics
     """
-    print("\n" + "="*80)
-    print("EVALUATION ON TEST SET - FEATURE SELECTION AGENT")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("EVALUATION ON TEST SET - FEATURE SELECTION AGENT")
+    logger.info("="*80)
 
     # Load trained agent
     agent = QLearningAgentFeatureSelection()
@@ -118,32 +131,32 @@ def evaluate_agent(agent_path='checkpoints/agent_feature_selection_final.pkl',
     feature_counter = Counter(results['selected_features'])
     top_features = feature_counter.most_common(10)
 
-    print("\n" + "="*80)
-    print("TEST SET RESULTS")
-    print("="*80)
-    print(f"Episodes: {n_episodes}")
+    logger.info("="*80)
+    logger.info("TEST SET RESULTS")
+    logger.info("="*80)
+    logger.info(f"Episodes: {n_episodes}")
 
-    print(f"\nBUSINESS METRICS:")
-    print(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
-    print(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
-    print(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
+    logger.info(f"BUSINESS METRICS:")
+    logger.info(f"  Subscription Rate: {sub_rate:.2f}% (baseline: 0.44%)")
+    logger.debug(f"  First Call Rate: {call_rate:.2f}% (baseline: 4.0%)")
+    logger.info(f"  Improvement: {sub_rate/0.44:.1f}x subscriptions")
 
-    print(f"\nTECHNICAL METRICS:")
-    print(f"  Avg Reward: {avg_reward:.2f}")
-    print(f"  Avg Steps: {np.mean(results['steps']):.2f}")
+    logger.info(f"TECHNICAL METRICS:")
+    logger.info(f"  Avg Reward: {avg_reward:.2f}")
+    logger.debug(f"  Avg Steps: {np.mean(results['steps']):.2f}")
 
-    print(f"\nFEATURE SELECTION METRICS:")
-    print(f"  Avg Feature Toggles: {avg_toggles:.2f}")
-    print(f"  Avg Features Selected: {avg_features:.2f} / 16")
-    print(f"  Feature Usage: {avg_features/16*100:.1f}%")
-    print(f"  Data Collection Savings: {(16-avg_features)/16*100:.1f}%")
+    logger.info(f"FEATURE SELECTION METRICS:")
+    logger.debug(f"  Avg Feature Toggles: {avg_toggles:.2f}")
+    logger.info(f"  Avg Features Selected: {avg_features:.2f} / 16")
+    logger.debug(f"  Feature Usage: {avg_features/16*100:.1f}%")
+    logger.debug(f"  Data Collection Savings: {(16-avg_features)/16*100:.1f}%")
 
-    print(f"\nTOP 10 MOST SELECTED FEATURES:")
+    logger.info(f"TOP 10 MOST SELECTED FEATURES:")
     for rank, (feature, count) in enumerate(top_features, 1):
         percentage = (count / n_episodes) * 100
-        print(f"  {rank}. {feature}: {count} times ({percentage:.1f}%)")
+        logger.debug(f"  {rank}. {feature}: {count} times ({percentage:.1f}%)")
 
-    print("="*80 + "\n")
+    logger.info("="*80)
 
     # Save results
     results_summary = {
@@ -165,8 +178,8 @@ def evaluate_agent(agent_path='checkpoints/agent_feature_selection_final.pkl',
     with open('logs/test_results_feature_selection.json', 'w') as f:
         json.dump(results_summary, f, indent=2)
 
-    print(f"Results saved to: logs/test_results_feature_selection.json")
-    print("\nNext: Run analyze_features.py for detailed feature analysis")
+    logger.info(f"Results saved to: logs/test_results_feature_selection.json")
+    logger.info("Next: Run analyze_features.py for detailed feature analysis")
 
     return results_summary
 
@@ -175,9 +188,9 @@ def compare_with_baseline():
     """
     Compare feature selection agent with baseline agent.
     """
-    print("\n" + "="*80)
-    print("COMPARISON: BASELINE vs FEATURE SELECTION")
-    print("="*80)
+    logger.info("="*80)
+    logger.info("COMPARISON: BASELINE vs FEATURE SELECTION")
+    logger.info("="*80)
 
     # Load baseline results
     try:
@@ -188,32 +201,32 @@ def compare_with_baseline():
         with open('logs/test_results_feature_selection.json', 'r') as f:
             feature_sel = json.load(f)
 
-        print(f"\n{'Metric':<30} {'Baseline':<15} {'Feature Selection':<20} {'Difference'}")
-        print("-" * 80)
+        logger.info(f"{'Metric':<30} {'Baseline':<15} {'Feature Selection':<20} {'Difference'}")
+        logger.info("-" * 80)
 
-        print(f"{'Subscription Rate (%)':<30} {baseline['subscription_rate']:<15.2f} {feature_sel['subscription_rate']:<20.2f} {feature_sel['subscription_rate'] - baseline['subscription_rate']:+.2f}%")
-        print(f"{'First Call Rate (%)':<30} {baseline['first_call_rate']:<15.2f} {feature_sel['first_call_rate']:<20.2f} {feature_sel['first_call_rate'] - baseline['first_call_rate']:+.2f}%")
-        print(f"{'Improvement Factor':<30} {baseline['improvement_factor']:<15.2f}x {feature_sel['improvement_factor']:<20.2f}x")
+        logger.info(f"{'Subscription Rate (%)':<30} {baseline['subscription_rate']:<15.2f} {feature_sel['subscription_rate']:<20.2f} {feature_sel['subscription_rate'] - baseline['subscription_rate']:+.2f}%")
+        logger.debug(f"{'First Call Rate (%)':<30} {baseline['first_call_rate']:<15.2f} {feature_sel['first_call_rate']:<20.2f} {feature_sel['first_call_rate'] - baseline['first_call_rate']:+.2f}%")
+        logger.info(f"{'Improvement Factor':<30} {baseline['improvement_factor']:<15.2f}x {feature_sel['improvement_factor']:<20.2f}x")
 
-        print(f"\n{'Features Used':<30} {'16 (100%)':<15} {feature_sel['avg_features_selected']:<20.2f} ({feature_sel['feature_usage_percentage']:.1f}%)")
-        print(f"{'Data Collection Savings':<30} {'0%':<15} {100 - feature_sel['feature_usage_percentage']:<20.1f}%")
+        logger.info(f"{'Features Used':<30} {'16 (100%)':<15} {feature_sel['avg_features_selected']:<20.2f} ({feature_sel['feature_usage_percentage']:.1f}%)")
+        logger.debug(f"{'Data Collection Savings':<30} {'0%':<15} {100 - feature_sel['feature_usage_percentage']:<20.1f}%")
 
-        print("\nKey Insights:")
-        print(f"1. Feature selection uses {feature_sel['avg_features_selected']:.1f} features instead of all 16")
-        print(f"2. Saves {100 - feature_sel['feature_usage_percentage']:.1f}% on data collection costs")
-        print(f"3. Subscription rate: {feature_sel['subscription_rate']:.2f}% vs {baseline['subscription_rate']:.2f}% baseline")
+        logger.info("Key Insights:")
+        logger.info(f"1. Feature selection uses {feature_sel['avg_features_selected']:.1f} features instead of all 16")
+        logger.debug(f"2. Saves {100 - feature_sel['feature_usage_percentage']:.1f}% on data collection costs")
+        logger.info(f"3. Subscription rate: {feature_sel['subscription_rate']:.2f}% vs {baseline['subscription_rate']:.2f}% baseline")
 
         if feature_sel['subscription_rate'] > baseline['subscription_rate']:
-            print(f"4. ✅ Feature selection IMPROVED performance by {feature_sel['subscription_rate'] - baseline['subscription_rate']:.2f}%")
+            logger.info(f"4. Feature selection IMPROVED performance by {feature_sel['subscription_rate'] - baseline['subscription_rate']:.2f}%")
         elif feature_sel['subscription_rate'] < baseline['subscription_rate']:
-            print(f"4. ⚠️  Feature selection decreased performance by {baseline['subscription_rate'] - feature_sel['subscription_rate']:.2f}%")
+            logger.warning(f"4. Feature selection decreased performance by {baseline['subscription_rate'] - feature_sel['subscription_rate']:.2f}%")
         else:
-            print(f"4. = Feature selection maintained same performance with fewer features")
+            logger.info(f"4. Feature selection maintained same performance with fewer features")
 
     except FileNotFoundError:
-        print("Baseline results not found. Run src/evaluate.py first.")
+        logger.warning("Baseline results not found. Run src/evaluate.py first.")
 
-    print("="*80 + "\n")
+    logger.info("="*80)
 
 
 if __name__ == "__main__":

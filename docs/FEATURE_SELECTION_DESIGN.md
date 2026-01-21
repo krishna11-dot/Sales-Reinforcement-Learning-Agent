@@ -40,7 +40,13 @@ Goal: Find the minimal feature set that maximizes performance
 
 ## Current Implementation vs Required Implementation
 
-### Current Implementation (What Was Built)
+
+
+## Implementation Guide
+
+### Step 1: Modify Environment State Space
+
+**File:** `src/env### Current Implementation (What Was Built)
 
 **State Representation:**
 ```python
@@ -223,13 +229,7 @@ After training, we can analyze:
 | Training Time | ~3 min | ~10-15 min (more actions) |
 | Interpretability | Medium | High (can see which features selected) |
 
----
-
-## Implementation Guide
-
-### Step 1: Modify Environment State Space
-
-**File:** `src/environment.py`
+---ironment.py`
 
 ```python
 class CRMFeatureSelectionEnv(gym.Env):

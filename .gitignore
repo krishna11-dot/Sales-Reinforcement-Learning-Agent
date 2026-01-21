@@ -51,3 +51,5 @@ checkpoints/agent_feature_selection_episode_*.pkl
 # Keep only final models (uncomment to exclude these too):
 # checkpoints/agent_final.pkl
 # checkpoints/agent_feature_selection_final.pkl
+tmp*-*-cwd
+.claude/
